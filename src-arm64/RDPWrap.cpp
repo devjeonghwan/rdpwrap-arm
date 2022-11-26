@@ -33,7 +33,8 @@ typedef struct
 	WORD Build;
 } FILE_VERSION;
 
-#ifdef _WIN64
+
+#if defined(_WIN64) && defined(_M_X64)
 typedef unsigned long long PLATFORM_DWORD;
 struct FARJMP
 {	// x64 far jump | opcode | assembly
@@ -43,12 +44,22 @@ struct FARJMP
 	BYTE PushRaxOp; // 50	push rax
 	BYTE RetOp;		// C3	retn
 };
-#else
+#elif defined(_WIN32) && defined(_M_IX86)
 typedef unsigned long PLATFORM_DWORD;
 struct FARJMP
 {	// x86 far jump | opcode | assembly
 	BYTE PushOp;	// 68	push ptr
 	DWORD PushArg;	// PTR
+	BYTE RetOp;		// C3	retn
+};
+#elif defined(_WIN64) && defined(_M_ARM64)
+typedef unsigned long long PLATFORM_DWORD;
+struct FARJMP
+{	// ARM64 far jump | opcode | assembly
+	BYTE MovOp;		// 48	mov rax, ptr
+	BYTE MovRegArg;	// B8
+	DWORD64 MovArg;	// PTR
+	BYTE PushRaxOp; // 50	push rax
 	BYTE RetOp;		// C3	retn
 };
 #endif
@@ -391,7 +402,8 @@ HRESULT WINAPI New_CSLQuery_Initialize()
 
 	if (IniFile->SectionExists(Sect))
 	{
-		#ifdef _WIN64
+
+		#if defined(_WIN64) && defined(_M_X64)
 		bServerSku = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bServerSku.x64", 0));
 		bRemoteConnAllowed = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bRemoteConnAllowed.x64", 0));
 		bFUSEnabled = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bFUSEnabled.x64", 0));
@@ -400,7 +412,7 @@ HRESULT WINAPI New_CSLQuery_Initialize()
 		lMaxUserSessions = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "lMaxUserSessions.x64", 0));
 		ulMaxDebugSessions = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "ulMaxDebugSessions.x64", 0));
 		bInitialized = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bInitialized.x64", 0));
-		#else
+		#elif defined(_WIN32) && defined(_M_IX86)
 		bServerSku = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bServerSku.x86", 0));
 		bRemoteConnAllowed = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bRemoteConnAllowed.x86", 0));
 		bFUSEnabled = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bFUSEnabled.x86", 0));
@@ -409,6 +421,15 @@ HRESULT WINAPI New_CSLQuery_Initialize()
 		lMaxUserSessions = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "lMaxUserSessions.x86", 0));
 		ulMaxDebugSessions = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "ulMaxDebugSessions.x86", 0));
 		bInitialized = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bInitialized.x86", 0));
+		#elif defined(_WIN64) && defined(_M_ARM64)
+		bServerSku = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bServerSku.arm64", 0));
+		bRemoteConnAllowed = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bRemoteConnAllowed.arm64", 0));
+		bFUSEnabled = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bFUSEnabled.arm64", 0));
+		bAppServerAllowed = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bAppServerAllowed.arm64", 0));
+		bMultimonAllowed = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bMultimonAllowed.arm64", 0));
+		lMaxUserSessions = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "lMaxUserSessions.arm64", 0));
+		ulMaxDebugSessions = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "ulMaxDebugSessions.arm64", 0));
+		bInitialized = (DWORD*)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "bInitialized.arm64", 0));
 		#endif
 	}
 	delete[] Sect;
@@ -620,16 +641,19 @@ void Hook()
 			// rewrite original function to call our function (make hook)
 
 			WriteToLog("Hook SLGetWindowsInformationDWORD\r\n");
-			#ifdef _WIN64
+
+			#if defined(_WIN64) && defined(_M_X64)
 			Stub_SLGetWindowsInformationDWORD.MovOp = 0x48;
 			Stub_SLGetWindowsInformationDWORD.MovRegArg = 0xB8;
 			Stub_SLGetWindowsInformationDWORD.MovArg = (PLATFORM_DWORD)New_SLGetWindowsInformationDWORD;
 			Stub_SLGetWindowsInformationDWORD.PushRaxOp = 0x50;
 			Stub_SLGetWindowsInformationDWORD.RetOp = 0xC3;
-			#else
+			#elif defined(_WIN32) && defined(_M_IX86)
 			Stub_SLGetWindowsInformationDWORD.PushOp = 0x68;
 			Stub_SLGetWindowsInformationDWORD.PushArg = (PLATFORM_DWORD)New_SLGetWindowsInformationDWORD;
 			Stub_SLGetWindowsInformationDWORD.RetOp = 0xC3;
+			#elif defined(_WIN64) && defined(_M_ARM64)
+			WriteToLog("Not support windows vista on arm\r\n");
 			#endif
 
 			ReadProcessMemory(GetCurrentProcess(), _SLGetWindowsInformationDWORD, &Old_SLGetWindowsInformationDWORD, sizeof(FARJMP), &bw);
@@ -652,16 +676,19 @@ void Hook()
 			// rewrite original function to call our function (make hook)
 
 			WriteToLog("Hook SLGetWindowsInformationDWORD\r\n");
-			#ifdef _WIN64
+
+			#if defined(_WIN64) && defined(_M_X64)
 			Stub_SLGetWindowsInformationDWORD.MovOp = 0x48;
 			Stub_SLGetWindowsInformationDWORD.MovRegArg = 0xB8;
 			Stub_SLGetWindowsInformationDWORD.MovArg = (PLATFORM_DWORD)New_SLGetWindowsInformationDWORD;
 			Stub_SLGetWindowsInformationDWORD.PushRaxOp = 0x50;
 			Stub_SLGetWindowsInformationDWORD.RetOp = 0xC3;
-			#else
+			#elif defined(_WIN32) && defined(_M_IX86)
 			Stub_SLGetWindowsInformationDWORD.PushOp = 0x68;
 			Stub_SLGetWindowsInformationDWORD.PushArg = (PLATFORM_DWORD)New_SLGetWindowsInformationDWORD;
 			Stub_SLGetWindowsInformationDWORD.RetOp = 0xC3;
+			#elif defined(_WIN64) && defined(_M_ARM64)
+			WriteToLog("Not support windows 7 on arm\r\n");
 			#endif
 
 			ReadProcessMemory(GetCurrentProcess(), _SLGetWindowsInformationDWORD, &Old_SLGetWindowsInformationDWORD, sizeof(FARJMP), &bw);
@@ -673,10 +700,14 @@ void Hook()
 		// Windows 8
 		// uses SL Policy internal unexported function
 
+		#if defined(_WIN64) && defined(_M_ARM64)
+		WriteToLog("Not support windows 8 on arm\r\n");
+		#else
 		// load slc.dll and get function
 		// (will be used on intercepting undefined values)
 		hSLC = LoadLibrary(L"slc.dll");
 		_SLGetWindowsInformationDWORD = (SLGETWINDOWSINFORMATIONDWORD)GetProcAddress(hSLC, "SLGetWindowsInformationDWORD");
+		#endif
 	}
 	if (Ver == 0x0603)
 	{
@@ -700,74 +731,106 @@ void Hook()
 	{
 		if (GetModuleCodeSectionInfo(hTermSrv, &TermSrvBase, &TermSrvSize))
 		{
-			#ifdef _WIN64
+			#if defined(_WIN64) && defined(_M_X64)
 			if (!(IniFile->GetVariableInSection(Sect, "LocalOnlyPatch.x64", &Bool))) Bool = false;
-			#else
+			#elif defined(_WIN32) && defined(_M_IX86)
 			if (!(IniFile->GetVariableInSection(Sect, "LocalOnlyPatch.x86", &Bool))) Bool = false;
+			#elif defined(_WIN64) && defined(_M_ARM64)
+			if (!(IniFile->GetVariableInSection(Sect, "LocalOnlyPatch.arm64", &Bool))) Bool = false;
 			#endif
+
 			if (Bool)
 			{
 				WriteToLog("Patch CEnforcementCore::GetInstanceOfTSLicense\r\n");
 				Bool = false;
-				#ifdef _WIN64
+				
+				#if defined(_WIN64) && defined(_M_X64)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "LocalOnlyOffset.x64", 0));
 				Bool = IniFile->GetVariableInSection(Sect, "LocalOnlyCode.x64", &PatchName);
-				#else
+				#elif defined(_WIN32) && defined(_M_IX86)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "LocalOnlyOffset.x86", 0));
 				Bool = IniFile->GetVariableInSection(Sect, "LocalOnlyCode.x86", &PatchName);
+				#elif defined(_WIN64) && defined(_M_ARM64)
+				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "LocalOnlyOffset.arm64", 0));
+				Bool = IniFile->GetVariableInSection(Sect, "LocalOnlyCode.arm64", &PatchName);
 				#endif
+
 				if (Bool) Bool = IniFile->GetVariableInSection("PatchCodes", PatchName.Value, &Patch);
 				if (Bool && (SignPtr > TermSrvBase)) WriteProcessMemory(GetCurrentProcess(), (LPVOID)SignPtr, Patch.Value, Patch.ArraySize, &bw);
 			}
-			#ifdef _WIN64
+
+			#if defined(_WIN64) && defined(_M_X64)
 			if (!(IniFile->GetVariableInSection(Sect, "SingleUserPatch.x64", &Bool))) Bool = false;
-			#else
+			#elif defined(_WIN32) && defined(_M_IX86)
 			if (!(IniFile->GetVariableInSection(Sect, "SingleUserPatch.x86", &Bool))) Bool = false;
+			#elif defined(_WIN64) && defined(_M_ARM64)
+			if (!(IniFile->GetVariableInSection(Sect, "SingleUserPatch.arm64", &Bool))) Bool = false;
 			#endif
+
 			if (Bool)
 			{
 				WriteToLog("Patch CSessionArbitrationHelper::IsSingleSessionPerUserEnabled\r\n");
 				Bool = false;
-				#ifdef _WIN64
+				
+				#if defined(_WIN64) && defined(_M_X64)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "SingleUserOffset.x64", 0));
 				Bool = IniFile->GetVariableInSection(Sect, "SingleUserCode.x64", &PatchName);
-				#else
+				#elif defined(_WIN32) && defined(_M_IX86)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "SingleUserOffset.x86", 0));
 				Bool = IniFile->GetVariableInSection(Sect, "SingleUserCode.x86", &PatchName);
+				#elif defined(_WIN64) && defined(_M_ARM64)
+				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "SingleUserOffset.arm64", 0));
+				Bool = IniFile->GetVariableInSection(Sect, "SingleUserCode.arm64", &PatchName);
 				#endif
+
 				if (Bool) Bool = IniFile->GetVariableInSection("PatchCodes", PatchName.Value, &Patch);
 				if (Bool && (SignPtr > TermSrvBase)) WriteProcessMemory(GetCurrentProcess(), (LPVOID)SignPtr, Patch.Value, Patch.ArraySize, &bw);
 			}
-			#ifdef _WIN64
+			
+			#if defined(_WIN64) && defined(_M_X64)
 			if (!(IniFile->GetVariableInSection(Sect, "DefPolicyPatch.x64", &Bool))) Bool = false;
-			#else
+			#elif defined(_WIN32) && defined(_M_IX86)
 			if (!(IniFile->GetVariableInSection(Sect, "DefPolicyPatch.x86", &Bool))) Bool = false;
+			#elif defined(_WIN64) && defined(_M_ARM64)
+			if (!(IniFile->GetVariableInSection(Sect, "DefPolicyPatch.arm64", &Bool))) Bool = false;
 			#endif
+
 			if (Bool)
 			{
 				WriteToLog("Patch CDefPolicy::Query\r\n");
 				Bool = false;
-				#ifdef _WIN64
+				
+				#if defined(_WIN64) && defined(_M_X64)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "DefPolicyOffset.x64", 0));
 				Bool = IniFile->GetVariableInSection(Sect, "DefPolicyCode.x64", &PatchName);
-				#else
+				#elif defined(_WIN32) && defined(_M_IX86)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "DefPolicyOffset.x86", 0));
 				Bool = IniFile->GetVariableInSection(Sect, "DefPolicyCode.x86", &PatchName);
+				#elif defined(_WIN64) && defined(_M_ARM64)
+				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "DefPolicyOffset.arm64", 0));
+				Bool = IniFile->GetVariableInSection(Sect, "DefPolicyCode.arm64", &PatchName);
 				#endif
+
 				if (Bool) Bool = IniFile->GetVariableInSection("PatchCodes", PatchName.Value, &Patch);
 				if (Bool && (SignPtr > TermSrvBase)) WriteProcessMemory(GetCurrentProcess(), (LPVOID)SignPtr, Patch.Value, Patch.ArraySize, &bw);
 			}
-			#ifdef _WIN64
+
+			#if defined(_WIN64) && defined(_M_X64)
 			if (!(IniFile->GetVariableInSection(Sect, "SLPolicyInternal.x64", &Bool))) Bool = false;
-			#else
+			#elif defined(_WIN32) && defined(_M_IX86)
 			if (!(IniFile->GetVariableInSection(Sect, "SLPolicyInternal.x86", &Bool))) Bool = false;
+			#elif defined(_WIN64) && defined(_M_ARM64)
+			Bool = false;
 			#endif
+
 			if (Bool)
 			{
 				WriteToLog("Hook SLGetWindowsInformationDWORDWrapper\r\n");
 				char *FuncName;
 				FuncName = new char[1024];
-				#ifdef _WIN64
+
+				
+				#if defined(_WIN64) && defined(_M_X64)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "SLPolicyOffset.x64", 0));
 				Jump.MovOp = 0x48;
 				Jump.MovRegArg = 0xB8;
@@ -781,7 +844,7 @@ void Hook()
 				{
 					Jump.MovArg = (PLATFORM_DWORD)New_Win8SL;
 				}
-				#else
+				#elif defined(_WIN32) && defined(_M_IX86)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "SLPolicyOffset.x86", 0));
 				Jump.PushOp = 0x68;
 				Jump.PushArg = (PLATFORM_DWORD)New_Win8SL;
@@ -797,21 +860,29 @@ void Hook()
 				{
 					Jump.PushArg = (PLATFORM_DWORD)New_Win8SL_CP;
 				}
+				#elif defined(_WIN64) && defined(_M_ARM64)
+				WriteToLog("Not support hook SLGetWindowsInformationDWORDWrapper on arm\r\n");
 				#endif
+
 				delete[] FuncName;
 				if (SignPtr > TermSrvBase) WriteProcessMemory(GetCurrentProcess(), (LPVOID)SignPtr, &Jump, sizeof(FARJMP), &bw);
 			}
-			#ifdef _WIN64
+			
+			#if defined(_WIN64) && defined(_M_X64)
 			if (!(IniFile->GetVariableInSection(Sect, "SLInitHook.x64", &Bool))) Bool = false;
-			#else
+			#elif defined(_WIN32) && defined(_M_IX86)
 			if (!(IniFile->GetVariableInSection(Sect, "SLInitHook.x86", &Bool))) Bool = false;
+			#elif defined(_WIN64) && defined(_M_ARM64)
+			if (!(IniFile->GetVariableInSection(Sect, "SLInitHook.arm64", &Bool))) Bool = false;
 			#endif
+
 			if (Bool)
 			{
 				WriteToLog("Hook CSLQuery::Initialize\r\n");
 				char *FuncName;
 				FuncName = new char[1024];
-				#ifdef _WIN64
+				
+				#if defined(_WIN64) && defined(_M_X64)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "SLInitOffset.x64", 0));
 				Jump.MovOp = 0x48;
 				Jump.MovRegArg = 0xB8;
@@ -825,7 +896,7 @@ void Hook()
 				{
 					Jump.MovArg = (PLATFORM_DWORD)New_CSLQuery_Initialize;
 				}
-				#else
+				#elif defined(_WIN32) && defined(_M_IX86)
 				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "SLInitOffset.x86", 0));
 				Jump.PushOp = 0x68;
 				Jump.PushArg = (PLATFORM_DWORD)New_CSLQuery_Initialize;
@@ -837,11 +908,28 @@ void Hook()
 				{
 					Jump.PushArg = (PLATFORM_DWORD)New_CSLQuery_Initialize;
 				}
+				#elif defined(_WIN64) && defined(_M_ARM64)
+				SignPtr = (PLATFORM_DWORD)(TermSrvBase + INIReadDWordHex(IniFile, Sect, "SLInitOffset.arm64", 0));
+				Jump.MovOp = 0x48;
+				Jump.MovRegArg = 0xB8;
+				Jump.MovArg = (PLATFORM_DWORD)New_CSLQuery_Initialize;
+				Jump.PushRaxOp = 0x50;
+				Jump.RetOp = 0xC3;
+
+				INIReadString(IniFile, Sect, "SLInitFunc.arm64", "New_CSLQuery_Initialize", FuncName, 1024);
+
+				if (strcmp(FuncName, "New_CSLQuery_Initialize"))
+				{
+					Jump.MovArg = (PLATFORM_DWORD)New_CSLQuery_Initialize;
+				}
 				#endif
+
 				delete[] FuncName;
 				if (SignPtr > TermSrvBase) WriteProcessMemory(GetCurrentProcess(), (LPVOID)SignPtr, &Jump, sizeof(FARJMP), &bw);
 			}
 		}
+	} else {
+		WriteToLog("Not found current version section in ini\r\n");
 	}
 	delete[] Sect;
 
