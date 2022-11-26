@@ -1,4 +1,4 @@
-# RDP Wrapper Library by Stas'M
+# RDP Wrapper Library for Windows on ARM
 
 [![Telegram](https://img.shields.io/badge/chat-Telegram-blue.svg)](https://t.me/rdpwrap)
 ![Environment](https://img.shields.io/badge/Windows-Vista,%207,%208,%2010-brightgreen.svg)
